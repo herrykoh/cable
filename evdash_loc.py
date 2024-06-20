@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 import math
 import logging
 import dash_leaflet as dl
+import dash_leaflet.express as dlx
 import random
 from cloud.util import download_table
 
