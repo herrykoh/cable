@@ -37,6 +37,13 @@ class Bucket(object):
         return self._bucket
 
 
+def download_table(project, bucket_name, blob_path):
+    logging.log(logging.INFO, f"Downloading {blob_path} from {project}:{bucket_name}")
+    bucket = Bucket(project, bucket_name)
+    t = bucket.read_csv_blob_as_dataframe(blob_path)
+    return t
+
+
 def load_or_download_blob(project, bucket_name, blob_path, file_path, refresh_after_hours=24,
                           force_download=False) -> pd.DataFrame:
     """
@@ -54,9 +61,7 @@ def load_or_download_blob(project, bucket_name, blob_path, file_path, refresh_af
 
     # if file doesn't exist or older than cutoff time, reload.
     if force_download or not os.path.exists(file_path) or os.path.getmtime(file_path) < cutoff_seconds:
-        logging.log(logging.INFO, f"Downloading {blob_path} from cloud")
-        bucket = Bucket(project, bucket_name)
-        t = bucket.download_blob_as_text(blob_path)
+        t = download_table(project, bucket_name, blob_path)
         with open(file_path, "w") as f:
             f.write(t)
 
@@ -64,6 +69,8 @@ def load_or_download_blob(project, bucket_name, blob_path, file_path, refresh_af
 
     logging.info(f"Loading file from {file_path}")
     return pd.read_csv(file_path)
+
+
 
 
 if __name__ == "__main__":
