@@ -40,7 +40,7 @@ class Bucket(object):
 def download_table(project, bucket_name, blob_path):
     logging.log(logging.INFO, f"Downloading {blob_path} from {project}:{bucket_name}")
     bucket = Bucket(project, bucket_name)
-    t = bucket.download_blob_as_text(blob_path)
+    t = bucket.read_csv_blob_as_dataframe(blob_path)
     return t
 
 
