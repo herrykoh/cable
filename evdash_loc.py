@@ -142,11 +142,15 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
     locs_df = t[t['operatorName'].isin(in_ops_list) & (t['import_datestamp'] >= min_date) & (
             t['import_datestamp'] < max_date)]
 
-    markers = [dl.Marker(position=[lat, lng], children=[dl.Tooltip(content=name)], )
-               for lat, lng, name in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'])]
-    markers.insert(0, dl.TileLayer())
+    # markers = [dl.Marker(position=[lat, lng], children=[dl.Tooltip(content=name)], )
+    #            for lat, lng, name in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'])]
+    # markers.insert(0, dl.TileLayer())
 
-    logging.info(f"Number of markers: {len(markers)}")
+    circles = [dl.CircleMarker(center=[lat, lng], radius=10, fill=True, color=op_colour_dict[opname], children=[dl.Tooltip(content=tooltip)], )
+               for lat, lng, tooltip, opname in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'], locs_df['operatorName'])]
+    circles.insert(0, dl.TileLayer())
+
+    # logging.info(f"Number of markers: {len(markers)}")
 
     # ops_to_display = ops_to_display[['operatorName', 'import_date', 'numDC']]
     # ops_to_display = p[in_ops_list]
@@ -155,7 +159,8 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
 
     fig = px.bar(df, x='import_datestamp', y=graphtype, color='operatorName', color_discrete_map=op_colour_dict)
 
-    return [dcc.Graph(figure=fig), dl.Map(markers, center=map_centre, style={'height': '70vh'}, zoom=8)]
+    return [dcc.Graph(figure=fig), dl.Map(circles, center=map_centre, style={'height': '70vh'}, zoom=8)]
+    # return [dcc.Graph(figure=fig), dict(children=circles, center=map_centre, style={'height': '70vh'}, zoom=8)]
 
 
 if __name__ == '__main__':
