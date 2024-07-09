@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 import math
 import logging
 import dash_leaflet as dl
-import dash_leaflet.express as dlx
 import random
 from cloud.util import download_table
 
@@ -51,7 +50,7 @@ def calc_next_friday(from_date: datetime) -> datetime:
     return from_date + timedelta(days=WEEKLY_INTERVAL_ON_WEEKDAY - from_date.weekday())
 
 
-t = get_loc_analysis_table(locally=False)
+t = get_loc_analysis_table(locally=True)
 
 # get daterange from start to finish in table and calculate intervals of every Friday
 t['import_datestamp'] = pd.to_datetime(t['import_datestamp']).dt.date
@@ -108,7 +107,7 @@ app.layout = html.Div(children=[html.H1('EV Chargers Growth in the UK'),
                                 ]),
                                 html.Div([], style={'height': '10vh'}),
                                 html.Div([
-                                    html.Div([], id='mymap')
+                                    html.Div(id='mymap')
                                 ]),
                                 ])
 
@@ -150,6 +149,10 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
                for lat, lng, tooltip, opname in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'], locs_df['operatorName'])]
     circles.insert(0, dl.TileLayer())
 
+    log_circles = [f"{opname}: ({lat},{lng}) - [{postcode} - {locName}" for lat, lng, locName, opname, postcode in
+                   zip(locs_df['lat'], locs_df['lng'], locs_df['locationName'], locs_df['operatorName'], locs_df['postcode'])]
+    log_circles_str = "\n".join(log_circles)
+    logging.info(log_circles_str)
     # logging.info(f"Number of markers: {len(markers)}")
 
     # ops_to_display = ops_to_display[['operatorName', 'import_date', 'numDC']]
