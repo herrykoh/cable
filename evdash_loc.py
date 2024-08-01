@@ -10,6 +10,11 @@ import logging
 import dash_leaflet as dl
 import random
 from cloud.util import download_table
+import dash_leaflet.express as dlx
+from dash_extensions.javascript import assign
+
+
+DEFAULT_MAP_CENTER = [51.6, -0.001]
 
 logging.basicConfig(level=logging.INFO)
 
@@ -20,10 +25,11 @@ LOC_PATH_CLOUD = "analysis/by_loc.csv"
 
 WEEKLY_INTERVAL_ON_WEEKDAY = 4  # 4 is Friday
 
-COLOURS = ['Blue', 'Red', 'Green', 'Magenta', 'Violet', 'DarkOliveGreen',
-           'SteelBlue', 'Yellow', 'Indigo', 'Aquamarine', 'MediumSlateBlue', 'Fuchsia',
-           'LightSeaGreen', 'GoldenRod', 'DarkCyan', 'CadetBlue']
 
+COLOURS = ['Aquamarine', 'Blue', 'CadetBlue', 'DarkCyan', 'DarkOliveGreen', 'Fuchsia',
+           'GoldenRod', 'Gray', 'Green', 'Indigo', 'LightGray', 'LightSeaGreen', 'Lime',
+           'Magenta', 'MediumSlateBlue', 'Peru', 'Red', 'SandyBrown', 'SteelBlue',
+           'Violet', 'Yellow']
 
 def get_loc_analysis_table(locally=False) -> pd.DataFrame:
 
@@ -81,10 +87,16 @@ app = dash.Dash(__name__)
 
 app.config.suppress_callback_exceptions = True
 
+m = dl.Map([dl.TileLayer(), dl.LayerGroup(id="markerlayer")], center=DEFAULT_MAP_CENTER, style={'height': '70vh'}, zoom=8)
+
 #
 # slider_style = {'writing-mode': 'vertical-lr', 'text-orientation': 'upright'}
 slider_style = {}
 slider_marks = {d: {'label': all_fridays[d].strftime('%b-%d'), 'style': slider_style} for d in range(len(all_fridays))}
+
+
+
+point_to_layer = assign("function(feature, latlng, context) {return L.circleMarker(latlng, {color: feature.properties.color});}")
 
 app.layout = html.Div(children=[html.H1('EV Chargers Growth in the UK'),
                                 html.H2('Select Operator:', style={'margin-right': '2em'}),
@@ -107,20 +119,19 @@ app.layout = html.Div(children=[html.H1('EV Chargers Growth in the UK'),
                                 ]),
                                 html.Div([], style={'height': '10vh'}),
                                 html.Div([
-                                    html.Div(id='mymap')
+                                    html.Div([m])
                                 ]),
+                                html.Footer('Author: Herry Koh')
                                 ])
 
 
-@app.callback([Output(component_id='plot1', component_property='children'),
-               Output(component_id="mymap", component_property="children")
-               ],
-              [Input(component_id='operator', component_property='value'),
+@app.callback(Output(component_id='plot1', component_property='children'),
+              Output("markerlayer", "children"),
+              Input(component_id='operator', component_property='value'),
                Input(component_id='gtype', component_property='value'),
-               Input(component_id="date_slider", component_property="value")],
+               Input(component_id="date_slider", component_property="value"),
               )
 def operator_numDC_display(input_operators, graphtype, dateslider):
-    # print('Input ops is :' + str(input_operators))
 
     min_ds, max_ds = dateslider
     min_date = all_fridays[min_ds]
@@ -138,32 +149,17 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
     df = agg_t[(agg_t['operatorName'].isin(in_ops_list)) & (agg_t['import_datestamp'] >= min_date) & (
             agg_t['import_datestamp'] < max_date)]
 
-    locs_df = t[t['operatorName'].isin(in_ops_list) & (t['import_datestamp'] >= min_date) & (
+    locs_df = t[(t['operatorName'].isin(in_ops_list)) & (t['import_datestamp'] >= min_date) & (
             t['import_datestamp'] < max_date)]
 
-    # markers = [dl.Marker(position=[lat, lng], children=[dl.Tooltip(content=name)], )
-    #            for lat, lng, name in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'])]
-    # markers.insert(0, dl.TileLayer())
-
-    circles = [dl.CircleMarker(center=[lat, lng], radius=10, fill=True, color=op_colour_dict[opname], children=[dl.Tooltip(content=tooltip)], )
+    circles = [dict(lat=lat, lon=lng, tooltip=tooltip, color=op_colour_dict.get(opname, ''))
                for lat, lng, tooltip, opname in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'], locs_df['operatorName'])]
-    circles.insert(0, dl.TileLayer())
-
-    log_circles = [f"{opname}: ({lat},{lng}) - [{postcode} - {locName}" for lat, lng, locName, opname, postcode in
-                   zip(locs_df['lat'], locs_df['lng'], locs_df['locationName'], locs_df['operatorName'], locs_df['postcode'])]
-    log_circles_str = "\n".join(log_circles)
-    logging.info(log_circles_str)
-    # logging.info(f"Number of markers: {len(markers)}")
-
-    # ops_to_display = ops_to_display[['operatorName', 'import_date', 'numDC']]
-    # ops_to_display = p[in_ops_list]
-
-    map_centre = [51.5, -0.1] if len(locs_df) == 0 else [locs_df.iloc[0]['lat'], locs_df.iloc[0]['lng']]
 
     fig = px.bar(df, x='import_datestamp', y=graphtype, color='operatorName', color_discrete_map=op_colour_dict)
 
-    return [dcc.Graph(figure=fig), dl.Map(circles, center=map_centre, style={'height': '70vh'}, zoom=8)]
-    # return [dcc.Graph(figure=fig), dict(children=circles, center=map_centre, style={'height': '70vh'}, zoom=8)]
+    logging.info(f"Len of circles: {len(circles)}")
+
+    return [dcc.Graph(figure=fig),  dl.GeoJSON(data=dlx.dicts_to_geojson(circles), pointToLayer=point_to_layer)]
 
 
 if __name__ == '__main__':
