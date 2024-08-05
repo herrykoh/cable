@@ -31,6 +31,18 @@ COLOURS = ['Aquamarine', 'Blue', 'CadetBlue', 'DarkCyan', 'DarkOliveGreen', 'Fuc
            'Magenta', 'MediumSlateBlue', 'Peru', 'Red', 'SandyBrown', 'SteelBlue',
            'Violet', 'Yellow']
 
+
+Y_LABELS = {
+         'import_datestamp': 'date',
+         'loc_count': 'no. of locations',
+         'numConnectors': 'total no. of connectors',
+         'numAC': 'no. of AC(slow) connectors',
+         'numDC': 'no. of DC connectors',
+         'numFastConnectors': 'no. of fast connectors',
+         'numOperationalConnectors': 'no. of operational connectors',
+         'numOperationalFastConnectors': 'no. of operational fast connectors'
+}
+
 def get_loc_analysis_table(locally=False) -> pd.DataFrame:
 
     tab = pd.read_csv(LOC_PATH_LOCAL, index_col=0) if locally else download_table(PROJECT_NAME, BUCKET_NAME, LOC_PATH_CLOUD)
@@ -44,8 +56,8 @@ def get_loc_analysis_table(locally=False) -> pd.DataFrame:
 
     tab['tooltip'] = '<b>' + tab['operatorName'] + '</b>' + '<br>' + \
                      tab['locationName'] + ' (' + tab['postcode'] + ')' + '<br>' +\
-                     'numDC: ' + tab['numDC'].astype(str) + '<br>' +\
-                     'operationalDC: ' + tab['numOperationalFastConnectors'].astype(str) + '<br>' +\
+                     'connectors: ' + tab['numConnectors'].astype(str) + '<br>' + \
+                     'fast connectors: ' + tab['numFastConnectors'].astype(str) + '<br>' + \
                      'date: ' + tab['import_datestamp'].astype(str)
 
 
@@ -59,17 +71,23 @@ def calc_next_friday(from_date: datetime) -> datetime:
 t = get_loc_analysis_table(locally=True)
 
 # get daterange from start to finish in table and calculate intervals of every Friday
-t['import_datestamp'] = pd.to_datetime(t['import_datestamp']).dt.date
-t['numDC'] = t['numDC'].astype(int)
 all_dates = sorted(t['import_datestamp'].unique())
 end_friday = calc_next_friday(all_dates[-1])
 num_of_weeks = math.floor((all_dates[-1] - all_dates[0]).days / 7)
 all_fridays = [(end_friday - timedelta(days=n * 7)) for n in range(num_of_weeks)]
 all_fridays.reverse()
 
+# sum up all the locations with the same post code, count the number of locations by operator
 agg_by_loc_count = t.groupby(['operatorName', 'import_datestamp'])['postcode'].count().reset_index().rename(
     columns={'postcode': 'loc_count'})
-agg_by_sum_conn = t.groupby(['operatorName', 'import_datestamp'])['numDC'].sum().reset_index()
+
+# count the number of fast connectors
+agg_cols = ['numConnectors', 'numFastConnectors', 'numDC', 'numAC', 'numOperationalConnectors', 'numOperationalFastConnectors', ]
+agg_by_sum_conn = t.groupby(['operatorName', 'import_datestamp']) \
+                    .sum()[agg_cols]\
+                    .reset_index()
+# print(f"agg columns {agg_by_sum_conn.columns}")
+# agg_by_sum_conn = t.groupby(['operatorName', 'import_datestamp'])['numConnectors'].sum().reset_index()
 
 agg_t = agg_by_loc_count.merge(agg_by_sum_conn, how="inner", on=['operatorName', 'import_datestamp'])
 
@@ -89,8 +107,6 @@ app.config.suppress_callback_exceptions = True
 
 m = dl.Map([dl.TileLayer(), dl.LayerGroup(id="markerlayer")], center=DEFAULT_MAP_CENTER, style={'height': '70vh'}, zoom=8)
 
-#
-# slider_style = {'writing-mode': 'vertical-lr', 'text-orientation': 'upright'}
 slider_style = {}
 slider_marks = {d: {'label': all_fridays[d].strftime('%b-%d'), 'style': slider_style} for d in range(len(all_fridays))}
 
@@ -98,20 +114,20 @@ slider_marks = {d: {'label': all_fridays[d].strftime('%b-%d'), 'style': slider_s
 
 point_to_layer = assign("function(feature, latlng, context) {return L.circleMarker(latlng, {color: feature.properties.color});}")
 
-app.layout = html.Div(children=[html.H1('EV Chargers Growth in the UK'),
+app.layout = html.Div(children=[html.H1('EV Chargers Growth Trend in the UK'),
                                 html.H2('Select Operator:', style={'margin-right': '2em'}),
                                 html.Div([
                                     # dcc.RadioItems(opnames, value = "Ionity", id='operator',inline=True)]),
                                     dcc.Checklist(opnames, value=[opnames[0]], id='operator', inline=False),
                                 ], style={'width': '33%', 'display': 'inline-block'}),
-                                html.Div([dcc.RadioItems([{'label': 'Number of DCs', 'value': 'numDC'},
-                                                          {'label': 'Number of locations', 'value': 'loc_count'}],
-                                                         id='gtype', value='numDC')],
+                                html.Div([html.H2('Select metrics'), dcc.RadioItems([{'label': Y_LABELS[n], 'value': n} for n in ['loc_count'] + agg_cols],
+                                                         id='gtype', value='loc_count')],
                                          style={'width': '33%', 'display': 'inline-block', 'vertical-align': "top"}),
+                                html.H2('Select date range'),
                                 html.Div([
                                     dcc.RangeSlider(id="date_slider", min=0, max=len(all_fridays) - 1,
                                                     step=None,
-                                                    value=[len(all_fridays) - 2, len(all_fridays) - 1],
+                                                    value=[len(all_fridays) - 7, len(all_fridays) - 1],
                                                     marks=slider_marks, )
                                 ], style={'width': '67%', 'align': 'center'}),
                                 html.Div([
@@ -155,7 +171,19 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
     circles = [dict(lat=lat, lon=lng, tooltip=tooltip, color=op_colour_dict.get(opname, ''))
                for lat, lng, tooltip, opname in zip(locs_df['lat'], locs_df['lng'], locs_df['tooltip'], locs_df['operatorName'])]
 
-    fig = px.bar(df, x='import_datestamp', y=graphtype, color='operatorName', color_discrete_map=op_colour_dict)
+
+
+    fig = px.bar(df, x='import_datestamp', y=graphtype, color='operatorName', color_discrete_map=op_colour_dict,
+                 labels={
+                     'import_datestamp': 'date',
+                     'loc_count': 'no. of locations',
+                     'numConnectors': 'total no. of connectors',
+                     'numAC': 'no. of AC(slow) connectors',
+                     'numDC': 'no. of DC connectors',
+                     'numFastConnectors': 'no. of fast connectors',
+                     'numOperationalConnectors': 'no. of operational connectors',
+                     'numOperationalFastConnectors': 'no. of operational fast connectors'
+                 })
 
     logging.info(f"Len of circles: {len(circles)}")
 
