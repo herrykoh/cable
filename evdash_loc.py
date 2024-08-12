@@ -114,35 +114,48 @@ slider_marks = {d: {'label': all_fridays[d].strftime('%b-%d'), 'style': slider_s
 
 point_to_layer = assign("function(feature, latlng, context) {return L.circleMarker(latlng, {color: feature.properties.color});}")
 
-app.layout = html.Div(children=[html.H1('EV Chargers Growth Trend in the UK'),
+app.layout = html.Div(children=[html.Header(title="data-attic - EV Chargers Growth Trend UK"),
+                                html.H1('EV Chargers Growth Trend in the UK'),
+
+                                # operator
                                 html.H2('Select Operator:', style={'margin-right': '2em'}),
                                 html.Div([
                                     # dcc.RadioItems(opnames, value = "Ionity", id='operator',inline=True)]),
                                     dcc.Checklist(opnames, value=[opnames[0]], id='operator', inline=False),
                                 ], style={'width': '33%', 'display': 'inline-block'}),
+
+                                # metrics
                                 html.Div([html.H2('Select metrics'), dcc.RadioItems([{'label': Y_LABELS[n], 'value': n} for n in ['loc_count'] + agg_cols],
                                                          id='gtype', value='loc_count')],
                                          style={'width': '33%', 'display': 'inline-block', 'vertical-align': "top"}),
-                                html.H2('Select date range'),
+
+                                # date range
+                                html.Div(html.H2(id="daterange")),
                                 html.Div([
                                     dcc.RangeSlider(id="date_slider", min=0, max=len(all_fridays) - 1,
                                                     step=None,
                                                     value=[len(all_fridays) - 7, len(all_fridays) - 1],
                                                     marks=slider_marks, )
                                 ], style={'width': '67%', 'align': 'center'}),
+
+                                # graph
                                 html.Div([
                                     html.Div([], id='plot1')
                                 ]),
                                 html.Div([], style={'height': '10vh'}),
+
+                                # map
                                 html.Div([
                                     html.Div([m])
                                 ]),
+                                html.Div([], style={'height': '2vh'}),
                                 html.Footer('Author: Herry Koh')
                                 ])
 
 
 @app.callback(Output(component_id='plot1', component_property='children'),
               Output("markerlayer", "children"),
+              Output('daterange', 'children'),
               Input(component_id='operator', component_property='value'),
                Input(component_id='gtype', component_property='value'),
                Input(component_id="date_slider", component_property="value"),
@@ -155,6 +168,8 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
 
     logging.info(
         "Input date slider is " + str(dateslider) + " and corresponding date is " + str(min_date) + ',' + str(max_date))
+
+    date_range_str = "Date range selected: " + min_date.strftime("%d %b %y") + " - " + max_date.strftime("%d %b %y")
 
     in_ops_list = input_operators
     if isinstance(input_operators, str):
@@ -187,7 +202,7 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
 
     logging.info(f"Len of circles: {len(circles)}")
 
-    return [dcc.Graph(figure=fig),  dl.GeoJSON(data=dlx.dicts_to_geojson(circles), pointToLayer=point_to_layer)]
+    return [dcc.Graph(figure=fig),  dl.GeoJSON(data=dlx.dicts_to_geojson(circles), pointToLayer=point_to_layer), date_range_str]
 
 
 if __name__ == '__main__':
