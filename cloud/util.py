@@ -23,7 +23,7 @@ class Bucket(object):
         b = self.get_blob(blob_path)
         return b.download_as_text(encoding='utf-8') if b else None
 
-    def read_csv_blob_as_dataframe(self, blob_path) -> pd.DataFrame:
+    def read_csv_blob_as_dataframe(self, blob_path, has_index=False) -> pd.DataFrame:
         """
         Download the blob as a pandas dataframe.
         We make the assumption the blob is a CSV file
@@ -31,16 +31,16 @@ class Bucket(object):
         :return: a pandas dataframe or None
         """
         txt = self.download_blob_as_text(blob_path)
-        return pd.read_csv(StringIO(txt)) if txt else None
+        return pd.read_csv(StringIO(txt), index_col=0 if has_index else None) if txt else None
 
     def get_bucket(self):
         return self._bucket
 
 
-def download_table(project, bucket_name, blob_path):
+def download_table(project, bucket_name, blob_path, has_index=False):
     logging.log(logging.INFO, f"Downloading {blob_path} from {project}:{bucket_name}")
     bucket = Bucket(project, bucket_name)
-    t = bucket.read_csv_blob_as_dataframe(blob_path)
+    t = bucket.read_csv_blob_as_dataframe(blob_path, has_index)
     return t
 
 

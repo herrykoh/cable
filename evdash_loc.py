@@ -45,7 +45,7 @@ Y_LABELS = {
 
 def get_loc_analysis_table(locally=False) -> pd.DataFrame:
 
-    tab = pd.read_csv(LOC_PATH_LOCAL, index_col=0) if locally else download_table(PROJECT_NAME, BUCKET_NAME, LOC_PATH_CLOUD)
+    tab = pd.read_csv(LOC_PATH_LOCAL, index_col=0) if locally else download_table(PROJECT_NAME, BUCKET_NAME, LOC_PATH_CLOUD, has_index=True)
     tab['import_datestamp'] = pd.to_datetime(tab['import_datestamp']).dt.date
     tab['numDC'] = tab['numDC'].astype(int)
     tab['numAC'] = tab['numAC'].astype(int)
@@ -107,8 +107,8 @@ app.config.suppress_callback_exceptions = True
 
 m = dl.Map([dl.TileLayer(), dl.LayerGroup(id="markerlayer")], center=DEFAULT_MAP_CENTER, style={'height': '70vh'}, zoom=8)
 
-slider_style = {}
-slider_marks = {d: {'label': all_fridays[d].strftime('%b-%d'), 'style': slider_style} for d in range(len(all_fridays))}
+slider_style = {'writing-mode': 'vertical-rl', 'text-orientation': 'sideways'}
+slider_marks = {d: {'label': all_fridays[d].strftime('%d %b'), 'style': slider_style} for d in range(len(all_fridays))}
 
 
 
@@ -121,7 +121,7 @@ app.layout = html.Div(children=[html.Header(title="data-attic - EV Chargers Grow
                                 html.H2('Select Operator:', style={'margin-right': '2em'}),
                                 html.Div([
                                     # dcc.RadioItems(opnames, value = "Ionity", id='operator',inline=True)]),
-                                    dcc.Checklist(opnames, value=[opnames[0]], id='operator', inline=False),
+                                    dcc.Checklist(opnames, value=opnames, id='operator', inline=False),
                                 ], style={'width': '33%', 'display': 'inline-block'}),
 
                                 # metrics
@@ -129,14 +129,15 @@ app.layout = html.Div(children=[html.Header(title="data-attic - EV Chargers Grow
                                                          id='gtype', value='loc_count')],
                                          style={'width': '33%', 'display': 'inline-block', 'vertical-align': "top"}),
 
-                                # date range
+                                # date range slider
                                 html.Div(html.H2(id="daterange")),
                                 html.Div([
                                     dcc.RangeSlider(id="date_slider", min=0, max=len(all_fridays) - 1,
                                                     step=None,
                                                     value=[len(all_fridays) - 7, len(all_fridays) - 1],
-                                                    marks=slider_marks, )
-                                ], style={'width': '67%', 'align': 'center'}),
+                                                    marks=slider_marks,
+                                                    allowCross=False)
+                                ], style={ 'width': '67%', 'align': 'center'}),
 
                                 # graph
                                 html.Div([
@@ -207,3 +208,4 @@ def operator_numDC_display(input_operators, graphtype, dateslider):
 
 if __name__ == '__main__':
     app.run_server()
+    # app.run_server(host='0.0.0.0', port="8282")
